@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:jms="http://www.springframework.org/schema/jms"
+       xmlns:amq="http://activemq.apache.org/schema/core"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://activemq.apache.org/schema/core
+        http://activemq.apache.org/schema/core/activemq-core.xsd
+        http://www.springframework.org/schema/jms
+        http://www.springframework.org/schema/jms/spring-jms.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd" default-autowire="byName">
+    <!-- 注解扫描 -->
+    <context:component-scan base-package="com.activemq"/>
+    <!-- 引入163配置文件 -->
+    <context:property-placeholder location="163.properties"/>
+
+    <!-- 配置JavaMail进行邮件发送前的属性 -->
+    <bean id="javaMailSender" class="org.springframework.mail.javamail.JavaMailSenderImpl">
+        <property name="host" value="smtp.exmail.qq.com"/>
+        <property name="port" value="465"/>
+        <property name="username" value="${qq.username}"/>
+        <property name="password" value="${qq.password}"/>
+        <property name="defaultEncoding" value="utf-8"/>
+        <property name="javaMailProperties">
+            <props>
+                <prop key="mail.smtp.auth">true</prop>
+                <prop key="mail.smtp.timeout">30000</prop>
+            </props>
+        </property>
+    </bean>
+
+    <!-- 配置MailMessage对象，发件人属性 -->
+    <bean id="mailMessage" class="org.springframework.mail.SimpleMailMessage" scope="prototype">
+        <property name="from" value="${qq.username}"/>
+    </bean>
+
+    <!-- 配置任务执行线程池 -->
+    <bean id="pool" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+        <!-- 核心线程数，初始容量 -->
+        <property name="corePoolSize" value="4"/>
+        <!-- 空闲时间 -->
+        <property name="keepAliveSeconds" value="60"/>
+        <!-- 最大线程数 -->
+        <property name="maxPoolSize" value="24"/>
+        <!-- 任务队列容量 -->
+        <property name="queueCapacity" value="128"/>
+    </bean>
+
+    <!-- 配置ActiveMQ原生ConnectionFactory -->
+    <amq:connectionFactory id="amqConnectionFactory" brokerURL="tcp://192.168.76.136:61616" userName="admin" password="admin"/>
+
+    <!-- 配置有缓存的ConnectionFactory，session的缓存大小可定制 -->
+    <bean id="connectionFactory" class="org.springframework.jms.connection.CachingConnectionFactory">
+        <property name="targetConnectionFactory" ref="amqConnectionFactory"/>
+        <property name="sessionCacheSize" value="3"/>
+    </bean>
+
+    <!--
+        注册监听器容器
+        acknowledge：消息确认机制
+        container-type：容器类型，默认为：DefaultContainerType、SingleContainerType
+        destination-type：目的地类型
+        connection-factory：连接工厂，spring-jms使用的连接工厂，必须是spring自主创建的
+            不能使用三方工具创建的工厂，如：ActiveMQConnectionFactory
+    -->
+    <jms:listener-container acknowledge="auto" container-type="default" destination-type="queue" connection-factory="connectionFactory">
+        <!-- 在容器中注册监听器对象，ref引用自己实现的监听器 -->
+        <jms:listener destination="test-pring-activemq" ref="myListener"/>
+    </jms:listener-container>
+</beans>
